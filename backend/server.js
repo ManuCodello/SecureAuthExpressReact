@@ -5,6 +5,7 @@ const db = require('./config/database');
 
 // Importar el enrutador
 const authRoutes = require('./routes/auth.routes');
+const profileRoutes = require('./routes/profile.routes');
 
 const app = express();
 
@@ -20,6 +21,9 @@ app.get('/', (req, res) => {
 // "Enchufar" el enrutador de autenticación en la aplicación
 // Todas las rutas definidas en auth.routes.js tendrán el prefijo '/api/auth'
 app.use('/api/auth', authRoutes);
+
+// Rutas de perfil (protegidas)
+app.use('/api/profile', profileRoutes); 
 
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {

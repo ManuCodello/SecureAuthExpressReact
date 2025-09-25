@@ -1,5 +1,6 @@
 const User = require('../models/user.model'); // Importamos nuestro Modelo
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 // La lógica para registrar un usuario
 exports.register = async (req, res) => {
@@ -31,6 +32,53 @@ exports.register = async (req, res) => {
     if (error.code === 'SQLITE_CONSTRAINT') {
         return res.status(400).json({ message: 'El correo electrónico ya está en uso.' });
     }
+    res.status(500).json({ message: 'Error inesperado en el servidor.', error: error.message });
+  }
+};
+
+// Función para el inicio de sesión de un usuario con jwt
+exports.login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ message: 'El correo electrónico y la contraseña son requeridos.' });
+    }
+
+    const user = await User.findByEmail(email);
+    if (!user) {
+      return res.status(401).json({ message: 'Credenciales inválidas.' });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Credenciales inválidas.' });
+    }
+    // Crea el "Payload" para el token.
+    // Incluimos la información que queremos que el token "recuerde" sobre el usuario.
+    const payload = {
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role
+      }
+    };
+    // 3. Firma el token con nuestro secreto y establece una fecha de expiración.
+    jwt.sign(
+      payload,
+      process.env.JWT_SECRET, // Usamos la clave secreta de nuestro archivo .env
+      { expiresIn: '1h' },    // El token será válido por 1 hora
+      (err, token) => {
+        if (err) throw err;
+        // 4. Envía el token al cliente (junto con un mensaje de éxito).
+        res.status(200).json({
+          message: 'Inicio de sesión exitoso.',
+          token: token // ¡Aquí está nuestra pulsera VIP!
+        });
+      }
+    );
+
+  } catch (error) {
     res.status(500).json({ message: 'Error inesperado en el servidor.', error: error.message });
   }
 };
