@@ -1,0 +1,8 @@
+# Ignorar dependencias de Node
+node_modules/
+
+# Ignorar variables de entorno
+.env
+
+# Ignorar base de datos de SQLite (con su nueva ruta)
+config/database.sqlite
