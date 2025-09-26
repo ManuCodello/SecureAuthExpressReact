@@ -82,3 +82,45 @@ exports.login = async (req, res) => {
     res.status(500).json({ message: 'Error inesperado en el servidor.', error: error.message });
   }
 };
+
+
+exports.loginWithSession = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email y contraseña son requeridos.' });
+    }
+    const user = await User.findByEmail(email);
+    if (!user) {
+      return res.status(401).json({ message: 'Credenciales inválidas.' });
+    }
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Credenciales inválidas.' });
+    }
+
+    // ✅ ¡Autenticación exitosa! Guardamos el usuario en la sesión.
+    req.session.user = {
+      id: user.id,
+      email: user.email,
+      role: user.role
+    };
+
+    res.status(200).json({
+      message: 'Inicio de sesión con sesión exitoso.',
+      user: req.session.user
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error inesperado.', error: error.message });
+  }
+};
+
+exports.logout = (req, res) => {
+  req.session.destroy(err => {
+    if (err) {
+      return res.status(500).json({ message: 'No se pudo cerrar la sesión.' });
+    }
+    res.clearCookie('connect.sid'); // Limpia la cookie de sesión
+    res.status(200).json({ message: 'Sesión cerrada exitosamente.' });
+  });
+};
