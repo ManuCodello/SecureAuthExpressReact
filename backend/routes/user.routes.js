@@ -12,11 +12,7 @@ const checkRole = require('../middleware/rol.middleware');
 // 1. authMiddleware -> ¿Estás autenticado?
 // 2. checkRole(['Administrador']) -> ¿Tienes el rol de Administrador?
 // 3. userController.createUser -> Si pasaste los dos anteriores, ejecuta la lógica.
-router.post(
-  '/create', 
-  authMiddleware, 
-  checkRole(['Administrador']), 
-  userController.createUser
-);
+router.post('/create', authMiddleware, checkRole(['Administrador']), userController.createUser);
+router.get('/', authMiddleware, checkRole(['Administrador']), userController.getAllUsers);
 
 module.exports = router;

@@ -34,7 +34,24 @@ const User = {
         resolve(row);
       });
     });
-  }
+  },
+
+  findAll: () => {
+    return new Promise((resolve, reject) => {
+      // Excluimos la contraseña del resultado por seguridad
+      const sql = `SELECT id, email, role, created_at FROM users`;
+      // db.all se usa para obtener múltiples filas
+      db.all(sql, [], (err, rows) => {
+        if (err) {
+          return reject(err);
+        }
+        resolve(rows);
+      });
+    });
+  },
 };
+
+
+
 
 module.exports = User;
