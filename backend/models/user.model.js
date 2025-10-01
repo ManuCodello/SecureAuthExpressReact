@@ -49,6 +49,28 @@ const User = {
       });
     });
   },
+
+  // Eliminar un usuario por ID
+  deleteById: (id) => {
+    return new Promise((resolve, reject) => {
+      const sql = `DELETE FROM users WHERE id = ?`;
+      db.run(sql, [id], function(err) {
+        if (err) return reject(err);
+        resolve({ changes: this.changes });
+      });
+    });
+  },
+
+  // Actualizar el rol de un usuario
+  updateRole: (id, role) => {
+    return new Promise((resolve, reject) => {
+      const sql = `UPDATE users SET role = ? WHERE id = ?`;
+      db.run(sql, [role, id], function(err) {
+        if (err) return reject(err);
+        resolve({ changes: this.changes });
+      });
+    });
+  },
 };
 
 

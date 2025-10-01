@@ -1,6 +1,7 @@
 const User = require('../models/user.model'); // Importamos nuestro Modelo
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const TokenBlacklist = require('../models/tokenBlacklist.model');
 
 // La lógica para registrar un usuario
 exports.register = async (req, res) => {
@@ -115,14 +116,35 @@ exports.loginWithSession = async (req, res) => {
   }
 };
 
-exports.logout = (req, res) => {
-  req.session.destroy(err => {
-    if (err) {
-      return res.status(500).json({ message: 'No se pudo cerrar la sesión.' });
+exports.logout = async (req, res) => {
+  try {
+    // 1) Si vino un JWT en Authorization, lo invalidamos agregándolo a la blacklist
+    const authHeader = req.header('Authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      try {
+        // decodificar sin verificar para obtener exp (en segundos)
+        const decoded = jwt.decode(token);
+        if (decoded && decoded.exp) {
+          await TokenBlacklist.add(token, decoded.exp);
+          await TokenBlacklist.pruneExpired();
+        }
+      } catch (e) {
+        // ignoramos errores en decode/blacklist para no bloquear el logout
+      }
     }
-    res.clearCookie('connect.sid'); // Limpia la cookie de sesión
-    res.status(200).json({ message: 'Sesión cerrada exitosamente.' });
-  });
+
+    // 2) Destruir sesión si existe
+    req.session.destroy(err => {
+      if (err) {
+        return res.status(500).json({ message: 'No se pudo cerrar la sesión.' });
+      }
+      res.clearCookie('connect.sid');
+      return res.status(200).json({ message: 'Sesión cerrada exitosamente.' });
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Error al cerrar sesión.' });
+  }
 };
 
 

@@ -2,26 +2,63 @@
 
 import React, { useState, useEffect } from 'react';
 import userService from '../services/user.service';
+import authService from '../services/auth.service';
 
 const AdminPage = () => {
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [actionLoadingId, setActionLoadingId] = useState(null);
+
+  const loadUsers = async () => {
+    try {
+      const response = await userService.getAllUsers();
+      setUsers(response.data);
+    } catch (err) {
+      setError(err.response?.data?.message || 'No tienes permiso para ver esta página.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const response = await userService.getAllUsers();
-        setUsers(response.data);
-      } catch (err) {
-        setError(err.response?.data?.message || 'No tienes permiso para ver esta página.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    loadUsers();
+  }, []);
 
-    fetchUsers();
-  }, []); // El array vacío asegura que se ejecute solo una vez
+  const withCsrf = async (fn) => {
+    const csrf = await authService.getCsrfToken();
+    return fn(csrf.data.csrfToken);
+  };
+
+  const handleToggleRole = async (u) => {
+    try {
+      setActionLoadingId(u.id);
+      const newRole = u.role === 'Administrador' ? 'Usuario' : 'Administrador';
+      await withCsrf(async (token) => {
+        await userService.updateRole(u.id, newRole, token);
+      });
+      await loadUsers();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Error al cambiar el rol.');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleDelete = async (u) => {
+    if (!confirm(`¿Eliminar al usuario ${u.email}?`)) return;
+    try {
+      setActionLoadingId(u.id);
+      await withCsrf(async (token) => {
+        await userService.deleteById(u.id, token);
+      });
+      await loadUsers();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Error al eliminar usuario.');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
 
   if (isLoading) {
     return <p className="text-center text-white mt-8">Cargando usuarios...</p>;
@@ -45,6 +82,7 @@ const AdminPage = () => {
                 <th scope="col" className="px-6 py-3">Email</th>
                 <th scope="col" className="px-6 py-3">Rol</th>
                 <th scope="col" className="px-6 py-3">Fecha de Creación</th>
+                <th scope="col" className="px-6 py-3">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700">
@@ -63,6 +101,22 @@ const AdminPage = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {new Date(user.created_at).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap space-x-2">
+                    <button
+                      onClick={() => handleToggleRole(user)}
+                      disabled={actionLoadingId === user.id}
+                      className="px-3 py-1 rounded bg-amber-600 hover:bg-amber-700 disabled:opacity-60"
+                    >
+                      {user.role === 'Administrador' ? 'Hacer Usuario' : 'Hacer Admin'}
+                    </button>
+                    <button
+                      onClick={() => handleDelete(user)}
+                      disabled={actionLoadingId === user.id}
+                      className="px-3 py-1 rounded bg-red-600 hover:bg-red-700 disabled:opacity-60"
+                    >
+                      Eliminar
+                    </button>
                   </td>
                 </tr>
               ))}

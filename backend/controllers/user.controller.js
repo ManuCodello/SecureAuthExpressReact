@@ -46,3 +46,44 @@ exports.getAllUsers = async (req, res) => {
     res.status(500).json({ message: 'Error al obtener los usuarios.', error: error.message });
   }
 };
+
+// Eliminar tu propia cuenta
+exports.deleteSelf = async (req, res) => {
+  try {
+    const id = req.user?.id;
+    if (!id) return res.status(401).json({ message: 'No autenticado.' });
+    const result = await User.deleteById(id);
+    if (result.changes === 0) return res.status(404).json({ message: 'Usuario no encontrado.' });
+    return res.status(200).json({ message: 'Cuenta eliminada.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar la cuenta.', error: error.message });
+  }
+};
+
+// Admin: eliminar usuario por id
+exports.deleteById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await User.deleteById(id);
+    if (result.changes === 0) return res.status(404).json({ message: 'Usuario no encontrado.' });
+    return res.status(200).json({ message: 'Usuario eliminado.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar el usuario.', error: error.message });
+  }
+};
+
+// Admin: actualizar rol
+exports.updateRole = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role } = req.body;
+    if (!['Usuario', 'Administrador'].includes(role)) {
+      return res.status(400).json({ message: 'Rol inválido.' });
+    }
+    const result = await User.updateRole(id, role);
+    if (result.changes === 0) return res.status(404).json({ message: 'Usuario no encontrado.' });
+    return res.status(200).json({ message: 'Rol actualizado.', id, role });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al actualizar el rol.', error: error.message });
+  }
+};

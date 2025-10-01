@@ -35,6 +35,20 @@ db.serialize(() => {
         console.log('🔑 Tabla "users" lista.');
     }
   });
+
+  const blacklistSql = `
+    CREATE TABLE IF NOT EXISTS tokens_blacklist (
+      token TEXT PRIMARY KEY,
+      expires_at INTEGER NOT NULL
+    )
+  `;
+  db.run(blacklistSql, (err) => {
+    if (err) {
+      console.error('❌ Error al crear la tabla "tokens_blacklist":', err.message);
+    } else {
+      console.log('🛡️  Tabla "tokens_blacklist" lista.');
+    }
+  });
 });
 
 

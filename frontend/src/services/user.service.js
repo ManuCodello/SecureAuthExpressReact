@@ -7,6 +7,7 @@ const API_URL = 'http://localhost:5001/api/users';
 // Creamos una instancia de axios para este servicio
 const api = axios.create({
   baseURL: API_URL,
+  withCredentials: true,
 });
 
 // Añadimos un "interceptor" a nuestra instancia.
@@ -29,9 +30,20 @@ const getAllUsers = () => {
   return api.get('/');
 };
 
+// Eliminar mi propia cuenta (requiere autenticación)
+const deleteSelf = (csrfToken) => api.delete('/me', { headers: { 'x-csrf-token': csrfToken } });
+
+// Admin: eliminar por id
+const deleteById = (id, csrfToken) => api.delete(`/${id}`, { headers: { 'x-csrf-token': csrfToken } });
+
+// Admin: actualizar rol
+const updateRole = (id, role, csrfToken) => api.patch(`/${id}/role`, { role }, { headers: { 'x-csrf-token': csrfToken } });
+
 const userService = {
   getAllUsers,
-  // Aquí añadiríamos createUser, updateUser, etc. en el futuro
+  deleteSelf,
+  deleteById,
+  updateRole,
 };
 
 export default userService;

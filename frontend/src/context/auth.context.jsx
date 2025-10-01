@@ -2,6 +2,7 @@
 
 import React, { useState, createContext, useEffect } from 'react';
 import axios from 'axios'; // Usaremos axios para verificar el token
+import authService from '../services/auth.service';
 
 // 1. Creamos el Contexto. Es el objeto que los componentes usarán para conectarse.
 const AuthContext = createContext();
@@ -21,38 +22,45 @@ function AuthProvider({ children }) {
   const authenticateUser = async () => {
     const storedToken = localStorage.getItem('authToken');
 
-    if (storedToken) {
-      try {
-        // Hacemos una petición al backend para verificar si el token aún es válido
+    try {
+      if (storedToken) {
+        // Intento 1: JWT
         const response = await axios.get('http://localhost:5001/api/profile/me', {
           headers: { Authorization: `Bearer ${storedToken}` },
+          withCredentials: true,
         });
-
-        // Si el token es válido, el backend nos devuelve los datos del usuario
         const userData = response.data.user;
-        
         setIsLoggedIn(true);
-        setIsLoading(false);
         setUser(userData);
-
-      } catch (error) {
-        // Si el token es inválido o expiró
-        setIsLoggedIn(false);
         setIsLoading(false);
-        setUser(null);
+        return;
       }
-    } else {
-      // Si no hay token en localStorage
-      setIsLoggedIn(false);
+
+      // Intento 2: Sesión por cookie
+      const response = await axios.get('http://localhost:5001/api/profile/me', {
+        withCredentials: true,
+      });
+      const userData = response.data.user;
+      setIsLoggedIn(true);
+      setUser(userData);
       setIsLoading(false);
+    } catch (error) {
+      setIsLoggedIn(false);
       setUser(null);
+      setIsLoading(false);
     }
   };
 
   // 5. Función para cerrar sesión
-  const logoutUser = () => {
-    localStorage.removeItem('authToken'); // Elimina el token
-    authenticateUser(); // Re-evalúa el estado (que ahora será "no logueado")
+  const logoutUser = async () => {
+    try {
+      const csrf = await authService.getCsrfToken();
+      await authService.logout(csrf.data.csrfToken);
+    } catch (e) {
+      // ignoramos error de logout
+    }
+    localStorage.removeItem('authToken');
+    await authenticateUser();
   };
   
   // 6. useEffect para que la verificación se ejecute una sola vez cuando la app se carga
@@ -60,7 +68,7 @@ function AuthProvider({ children }) {
     authenticateUser();
   }, []);
 
-  // 7. El valor que emitirá nuestra "señal Wi-Fi": los estados y las funciones.
+  // 7. El valor que emitirá nuestra "señal Wi-Fi": los estados y las funcion.
   const value = {
     isLoggedIn,
     isLoading,
