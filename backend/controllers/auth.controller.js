@@ -5,7 +5,7 @@ const TokenBlacklist = require('../models/tokenBlacklist.model');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-// ... (la función register no cambia) ...
+// funcion para registrar 
 exports.register = async (req, res) => {
   try {
     const { email, password, role = 'Usuario' } = req.body;
@@ -21,7 +21,7 @@ exports.register = async (req, res) => {
   }
 };
 
-
+// funcion para loguearse con jwt de autentificacion
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -43,7 +43,7 @@ exports.login = async (req, res) => {
         role: user.role,
       },
     };
-
+    // firmamos el token
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '24h' }); // Aumentamos a 24h
 
     // Configuración de cookie más robusta
@@ -64,29 +64,35 @@ exports.login = async (req, res) => {
   }
 };
 
-// ... (el resto de las funciones: loginWithSession y logout) ...
+// FUNCIÓN 2: Login con Session tradicional (Stateful)
 exports.loginWithSession = async (req, res) => {
     try {
         const { email, password } = req.body;
+
         const user = await User.findByEmail(email);
-        if (!user) return res.status(401).json({ message: 'Credenciales inválidas.' });
+        if (!user) {
+          return res.status(401).json({ message: 'Credenciales inválidas.' });
+        }
+
         const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) return res.status(401).json({ message: 'Credenciales inválidas.' });
+        if (!isMatch) {
+          return res.status(401).json({ message: 'Credenciales inválidas.' });
+        }
         
-        // Crear la sesión del usuario
-        req.session.user = { id: user.id, email: user.email, role: user.role };
-        
-        // Crear un token JWT para persistencia adicional
-        const token = jwt.sign({ user: req.session.user }, process.env.JWT_SECRET, { expiresIn: '24h' });
-        
-        // Configurar la cookie con el token
-        res.cookie('sessionToken', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            path: '/',
-            maxAge: 24 * 60 * 60 * 1000 // 24 horas
-        });
+        // Guardar datos del usuario EN EL SERVIDOR (en req.session)
+        // Express-session automáticamente crea un session ID y lo envía en cookie
+        req.session.user = { 
+            id: user.id, 
+            email: user.email, 
+            role: user.role 
+        };
+
+        // Configurar opciones adicionales de la cookie de sesión
+        // (esto depende de tu configuración de express-session)
+        req.session.cookie.httpOnly = true;
+        req.session.cookie.secure = process.env.NODE_ENV === 'production';
+        req.session.cookie.sameSite = 'strict';
+        req.session.cookie.maxAge = 24 * 60 * 60 * 1000; // 24 horas
 
         res.status(200).json({ 
             message: 'Inicio de sesión con sesión exitoso.', 
@@ -107,7 +113,7 @@ exports.logout = async (req, res) => {
         const decoded = jwt.decode(token);
         if (decoded && decoded.exp) {
           await TokenBlacklist.add(token, decoded.exp);
-        }
+        }  
       } catch (err) {
         console.error('Error al procesar token:', err);
       }
