@@ -36,6 +36,18 @@ const User = {
     });
   },
 
+  findById: (id) => {
+    return new Promise((resolve, reject) => {
+      const sql = `SELECT * FROM users WHERE id = ?`;
+      db.get(sql, [id], (err, row) => {
+        if (err) {
+          return reject(err);
+        }
+        resolve(row);
+      });
+    });
+  },
+
   findAll: () => {
     return new Promise((resolve, reject) => {
       // Excluimos la contraseña del resultado por seguridad

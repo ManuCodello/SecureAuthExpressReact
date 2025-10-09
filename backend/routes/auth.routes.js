@@ -54,4 +54,7 @@ router.post(
 );
 router.post('/logout', authController.logout);
 
+// Ruta para verificar la autenticación (tanto token como sesión)
+router.get('/verify', authController.verifyAuth);
+
 module.exports = router;

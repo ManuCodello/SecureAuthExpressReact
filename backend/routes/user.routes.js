@@ -35,7 +35,7 @@ router.post(
 router.get('/', authMiddleware, checkRole(['Administrador']), userController.getAllUsers);
 
 // Eliminar tu propia cuenta
-router.delete('/me', authMiddleware, userController.deleteSelf);
+router.delete('/me', authMiddleware, userController.deleteSelf); //no uso
 
 // Admin: eliminar un usuario por id
 router.delete(

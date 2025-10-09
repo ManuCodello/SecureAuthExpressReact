@@ -14,7 +14,9 @@ const LoginPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [csrfToken, setCsrfToken] = useState('');
   const navigate = useNavigate();
-  const { storeToken, authenticateUser } = useContext(AuthContext)
+  
+  // Obtenemos las funciones para actualizar el estado directamente
+  const { setUser, setIsLoggedIn } = useContext(AuthContext);
 
   useEffect(() => {
     const fetchCsrfToken = async () => {
@@ -42,22 +44,19 @@ const LoginPage = () => {
     setIsLoading(true);
 
     try {
-      // 👇 Llama a la nueva función 'login' de nuestro servicio
+      // 1. Llamamos al login y guardamos la respuesta
       const response = await authService.login(formData.email, formData.password, csrfToken);
       
-      // La API devuelve el token en response.data.token
-      const token = response.data.token;
+      // 2. Extraemos los datos del usuario de la respuesta del login
+      const userData = response.data.user;
       
-      // 4. En lugar de console.log, usamos nuestras funciones del contexto
-      storeToken(token);      // Guarda el token en localStorage
-      authenticateUser();     // Verifica el token y actualiza el estado global
+      // 3. Actualizamos el estado global del contexto DIRECTAMENTE
+      setUser(userData);
+      setIsLoggedIn(true);
       
-      navigate('/dashboard'); // Redirige al dashboard
+      // 4. Navegamos al dashboard
+      navigate('/dashboard'); 
       
-      // TODO: Guardar el token de forma segura
-      
-      
-
     } catch (err) {
       setError(err.response?.data?.message || 'Ocurrió un error al iniciar sesión.');
     } finally {
@@ -72,7 +71,6 @@ const LoginPage = () => {
           Iniciar Sesión
         </h1>
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Inputs de email y password (sin cambios) */}
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-slate-300">Correo Electrónico</label>
             <input id="email" name="email" type="email" required className="w-full px-3 py-2 mt-1 text-white bg-slate-700 border border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="tu@email.com" value={formData.email} onChange={handleChange} />
@@ -81,7 +79,6 @@ const LoginPage = () => {
             <label htmlFor="password" className="block text-sm font-medium text-slate-300">Contraseña</label>
             <input id="password" name="password" type="password" required className="w-full px-3 py-2 mt-1 text-white bg-slate-700 border border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="••••••••" value={formData.password} onChange={handleChange} />
           </div>
-          {/* Mensaje de error */}
           {error && <p className="text-red-500 text-sm text-center">{error}</p>}
           <div>
             <button

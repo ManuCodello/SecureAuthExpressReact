@@ -1,84 +1,70 @@
 // frontend/src/context/auth.context.jsx
 
 import React, { useState, createContext, useEffect } from 'react';
-import axios from 'axios'; // Usaremos axios para verificar el token
 import authService from '../services/auth.service';
 
-// 1. Creamos el Contexto. Es el objeto que los componentes usarán para conectarse.
+// Contexto de autenticación usado por la app.
+// Este contexto mantiene el estado del usuario, si está autenticado y si la comprobación está en curso.
 const AuthContext = createContext();
 
-// 2. Creamos el componente Proveedor (nuestro "router Wi-Fi").
 function AuthProvider({ children }) {
-  // 3. Definimos los estados que queremos compartir globalmente.
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isLoading, setIsLoading] = useState(true); // Para saber si estamos verificando el token
+  const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState(null);
 
-  // 4. Función para guardar el token y actualizar el estado.
-  const storeToken = (token) => {
-    localStorage.setItem('authToken', token);
-  };
-
+  // authenticateUser: comprobación inicial/explicit para saber si el cliente está autenticado.
   const authenticateUser = async () => {
-    const storedToken = localStorage.getItem('authToken');
-
+    setIsLoading(true);
     try {
-      if (storedToken) {
-        // Intento 1: JWT
-        const response = await axios.get('http://localhost:5001/api/profile/me', {
-          headers: { Authorization: `Bearer ${storedToken}` },
-          withCredentials: true,
-        });
-        const userData = response.data.user;
+      // Verificar si hay una sesión válida usando el endpoint /auth/verify
+      const response = await authService.verify();
+      
+      // Verificar la respuesta
+      if (response.data.isAuthenticated && response.data.user) {
         setIsLoggedIn(true);
-        setUser(userData);
-        setIsLoading(false);
-        return;
+        setUser(response.data.user);
+      } else {
+        setIsLoggedIn(false);
+        setUser(null);
       }
-
-      // Intento 2: Sesión por cookie
-      const response = await axios.get('http://localhost:5001/api/profile/me', {
-        withCredentials: true,
-      });
-      const userData = response.data.user;
-      setIsLoggedIn(true);
-      setUser(userData);
-      setIsLoading(false);
     } catch (error) {
+      console.error('Error de autenticación:', error);
       setIsLoggedIn(false);
       setUser(null);
+    } finally {
       setIsLoading(false);
     }
   };
 
-  // 5. Función para cerrar sesión
+  // logoutUser: solicita al backend cerrar sesión / invalidar cookie o JWT.
+  // Se recomienda obtener el CSRF token antes de llamar a logout si el backend lo requiere.
   const logoutUser = async () => {
     try {
-      const csrf = await authService.getCsrfToken();
-      await authService.logout(csrf.data.csrfToken);
-    } catch (e) {
-      // ignoramos error de logout
+      const { data: csrfData } = await authService.getCsrfToken();
+      await authService.logout(csrfData.csrfToken);
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error);
+    } finally {
+      // Siempre refrescamos el estado de autenticación tras intentar logout
+      authenticateUser();
     }
-    localStorage.removeItem('authToken');
-    await authenticateUser();
   };
-  
-  // 6. useEffect para que la verificación se ejecute una sola vez cuando la app se carga
+
   useEffect(() => {
+    // Comprobación inicial al montar el provider
     authenticateUser();
   }, []);
 
-  // 7. El valor que emitirá nuestra "señal Wi-Fi": los estados y las funcion.
   const value = {
     isLoggedIn,
     isLoading,
     user,
-    storeToken,
+    // Proveemos funciones para que otros componentes puedan forzar la comprobación o actualizar estado
+    setIsLoggedIn,
+    setUser,
     authenticateUser,
     logoutUser,
   };
-
-  console.log("Estado del AuthContext:", value);
 
   return (
     <AuthContext.Provider value={value}>
@@ -87,5 +73,4 @@ function AuthProvider({ children }) {
   );
 }
 
-// 8. Exportamos el Proveedor y el Contexto.
 export { AuthProvider, AuthContext };

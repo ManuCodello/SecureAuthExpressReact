@@ -11,11 +11,21 @@ const AdminPage = () => {
   const [actionLoadingId, setActionLoadingId] = useState(null);
 
   const loadUsers = async () => {
+    setError('');
     try {
       const response = await userService.getAllUsers();
-      setUsers(response.data);
+      if (response.data) {
+        setUsers(response.data);
+      }
     } catch (err) {
-      setError(err.response?.data?.message || 'No tienes permiso para ver esta página.');
+      console.error('Error al cargar usuarios:', err);
+      if (err.response?.status === 401) {
+        setError('No estás autenticado. Por favor, inicia sesión de nuevo.');
+      } else if (err.response?.status === 403) {
+        setError('No tienes permisos de administrador para ver esta página.');
+      } else {
+        setError(err.response?.data?.message || 'Error al cargar los usuarios.');
+      }
     } finally {
       setIsLoading(false);
     }

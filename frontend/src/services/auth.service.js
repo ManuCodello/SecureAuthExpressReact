@@ -2,68 +2,62 @@
 
 import axios from 'axios';
 
+// Base API para auth: usamos el prefijo /api del backend
 const API_URL = 'http://localhost:5001/api';
 
-// Creamos una instancia de axios.
-// ¡MUY IMPORTANTE! Añadimos 'withCredentials: true'.
-// Esto le permite a axios enviar cookies ( como la de sesión CSRF) al backend.
+// Instancia de axios para auth; withCredentials es CRUCIAL para enviar cookies HttpOnly
 const api = axios.create({
   baseURL: API_URL,
-  withCredentials: true, // 👈 Permite el envío de cookies
+  withCredentials: true,
 });
 
-// Nueva función para obtener el token CSRF
-const getCsrfToken = () => {
-  return api.get('/csrf-token');
-};
+// Obtener token CSRF (GET) -> { csrfToken }
+const getCsrfToken = () => api.get('/csrf-token');
 
-// Modificamos la función de registro para que acepte y envíe el token CSRF
+// Registro de usuario (envía CSRF token en cabecera)
 const register = (email, password, csrfToken) => {
-  return api.post('/auth/register', 
-    { // Body de la petición
-      email,
-      password,
-    }, 
-    { // Opciones de la petición (aquí van las cabeceras)
-      headers: {
-        'x-csrf-token': csrfToken, // 👈 Enviamos el token en la cabecera correcta
-      }
-    }
+  return api.post(
+    '/auth/register',
+    { email, password },
+    { headers: { 'x-csrf-token': csrfToken } }
   );
 };
 
-// Función para iniciar sesión con JWT
+// Login que coloca JWT en cookie HttpOnly (backend lo hace)
 const login = (email, password, csrfToken) => {
-  // Llama al endpoint de login con JWT
-  return api.post('/auth/login', 
+  return api.post(
+    '/auth/login',
     { email, password },
     { headers: { 'x-csrf-token': csrfToken } }
   );
 };
 
-// Función para iniciar sesión con cookies (sesiones)
+// Login con sesión (si usas sesiones en lugar de JWT)
 const loginWithSession = (email, password, csrfToken) => {
-  return api.post('/auth/login-session',
+  return api.post(
+    '/auth/login-session',
     { email, password },
     { headers: { 'x-csrf-token': csrfToken } }
   );
 };
 
-// Cerrar sesión (invalida la sesión y limpia la cookie en el backend)
-// Si hay JWT en localStorage lo envía en Authorization para que el backend lo ponga en blacklist
+// Logout: intenta obtener CSRF y llamar al endpoint de logout
 const logout = (csrfToken) => {
-  const storedToken = localStorage.getItem('authToken');
-  const headers = { 'x-csrf-token': csrfToken };
-  if (storedToken) headers['Authorization'] = `Bearer ${storedToken}`;
-  return api.post('/auth/logout', {}, { headers });
+  return api.post('/auth/logout', {}, { headers: { 'x-csrf-token': csrfToken } });
 };
+
+// Estado de autenticación (ENDPOINT SILENCIOSO que devuelve 200 siempre)
+// El backend responde { user: null } si no hay sesión/JWT válido.
+// Verificar token JWT y obtener datos del usuario
+const verify = () => api.get('/auth/verify');
 
 const authService = {
-  getCsrfToken, // 👈 Exportamos la nueva función
+  getCsrfToken,
   register,
   login,
   loginWithSession,
   logout,
+  verify,
 };
 
 export default authService;

@@ -1,51 +1,31 @@
-const User = require('../models/user.model'); // Importamos nuestro Modelo
+// backend/controllers/auth.controller.js
+
+const User = require('../models/user.model');
+const TokenBlacklist = require('../models/tokenBlacklist.model');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const TokenBlacklist = require('../models/tokenBlacklist.model');
 
-// La lógica para registrar un usuario
+// ... (la función register no cambia) ...
 exports.register = async (req, res) => {
   try {
     const { email, password, role = 'Usuario' } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ message: 'El correo electrónico y la contraseña son requeridos.' });
-    }
-    
-    // El controlador llama al Modelo para verificar si el usuario ya existe
-    const existingUser = await User.findByEmail(email);
-    if (existingUser) {
-      return res.status(400).json({ message: 'El correo electrónico ya está en uso.' });
-    }
-
-    // El controlador maneja la lógica de negocio (hashear la contraseña)
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = { email, password: hashedPassword, role };
-    
-    // El controlador llama al Modelo para crear el usuario
     const result = await User.create(newUser);
-    
-    // El controlador envía la respuesta (la "Vista")
     res.status(201).json({ message: 'Usuario registrado exitosamente.', userId: result.id });
-
   } catch (error) {
-    // Manejo de errores
     if (error.code === 'SQLITE_CONSTRAINT') {
-        return res.status(400).json({ message: 'El correo electrónico ya está en uso.' });
+      return res.status(400).json({ message: 'El correo electrónico ya está en uso.' });
     }
     res.status(500).json({ message: 'Error inesperado en el servidor.', error: error.message });
   }
 };
 
-// Función para el inicio de sesión de un usuario con jwt
+
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ message: 'El correo electrónico y la contraseña son requeridos.' });
-    }
-
     const user = await User.findByEmail(email);
     if (!user) {
       return res.status(401).json({ message: 'Credenciales inválidas.' });
@@ -55,96 +35,180 @@ exports.login = async (req, res) => {
     if (!isMatch) {
       return res.status(401).json({ message: 'Credenciales inválidas.' });
     }
-    // Crea el "Payload" para el token.
-    // Incluimos la información que queremos que el token "recuerde" sobre el usuario.
+
     const payload = {
       user: {
         id: user.id,
         email: user.email,
-        role: user.role
-      }
-    };
-    // 3. Firma el token con nuestro secreto y establece una fecha de expiración.
-    jwt.sign(
-      payload,
-      process.env.JWT_SECRET, // Usamos la clave secreta de nuestro archivo .env
-      { expiresIn: '1h' },    // El token será válido por 1 hora
-      (err, token) => {
-        if (err) throw err;
-        // 4. Envía el token al cliente (junto con un mensaje de éxito).
-        res.status(200).json({
-          message: 'Inicio de sesión exitoso.',
-          token: token // ¡Aquí está nuestra pulsera VIP!
-        });
-      }
-    );
-
-  } catch (error) {
-    res.status(500).json({ message: 'Error inesperado en el servidor.', error: error.message });
-  }
-};
-
-
-exports.loginWithSession = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Email y contraseña son requeridos.' });
-    }
-    const user = await User.findByEmail(email);
-    if (!user) {
-      return res.status(401).json({ message: 'Credenciales inválidas.' });
-    }
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(401).json({ message: 'Credenciales inválidas.' });
-    }
-
-    // ✅ ¡Autenticación exitosa! Guardamos el usuario en la sesión.
-    req.session.user = {
-      id: user.id,
-      email: user.email,
-      role: user.role
+        role: user.role,
+      },
     };
 
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '24h' }); // Aumentamos a 24h
+
+    // Configuración de cookie más robusta
+    res.cookie('accessToken', token, {
+      httpOnly: true, // Previene acceso desde JavaScript
+      secure: process.env.NODE_ENV === 'production', // HTTPS en producción
+      sameSite: 'lax',
+      path: '/', // Asegura que la cookie está disponible en toda la app
+    });
+
+    // Devolvemos datos del usuario y un mensaje de éxito
     res.status(200).json({
-      message: 'Inicio de sesión con sesión exitoso.',
-      user: req.session.user
+      message: 'Inicio de sesión exitoso.',
+      user: payload.user,
     });
   } catch (error) {
     res.status(500).json({ message: 'Error inesperado.', error: error.message });
   }
 };
 
+// ... (el resto de las funciones: loginWithSession y logout) ...
+exports.loginWithSession = async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        const user = await User.findByEmail(email);
+        if (!user) return res.status(401).json({ message: 'Credenciales inválidas.' });
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) return res.status(401).json({ message: 'Credenciales inválidas.' });
+        
+        // Crear la sesión del usuario
+        req.session.user = { id: user.id, email: user.email, role: user.role };
+        
+        // Crear un token JWT para persistencia adicional
+        const token = jwt.sign({ user: req.session.user }, process.env.JWT_SECRET, { expiresIn: '24h' });
+        
+        // Configurar la cookie con el token
+        res.cookie('sessionToken', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            path: '/',
+            maxAge: 24 * 60 * 60 * 1000 // 24 horas
+        });
+
+        res.status(200).json({ 
+            message: 'Inicio de sesión con sesión exitoso.', 
+            user: req.session.user,
+            isAuthenticated: true 
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Error inesperado.', error: error.message });
+    }
+};
+
 exports.logout = async (req, res) => {
   try {
-    // 1) Si vino un JWT en Authorization, lo invalidamos agregándolo a la blacklist
-    const authHeader = req.header('Authorization');
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
+    // Añadir todos los tokens a la lista negra
+    const tokens = [req.cookies.accessToken, req.cookies.sessionToken].filter(Boolean);
+    for (const token of tokens) {
       try {
-        // decodificar sin verificar para obtener exp (en segundos)
         const decoded = jwt.decode(token);
         if (decoded && decoded.exp) {
           await TokenBlacklist.add(token, decoded.exp);
-          await TokenBlacklist.pruneExpired();
         }
-      } catch (e) {
-        // ignoramos errores en decode/blacklist para no bloquear el logout
+      } catch (err) {
+        console.error('Error al procesar token:', err);
       }
     }
 
-    // 2) Destruir sesión si existe
-    req.session.destroy(err => {
-      if (err) {
-        return res.status(500).json({ message: 'No se pudo cerrar la sesión.' });
-      }
-      res.clearCookie('connect.sid');
-      return res.status(200).json({ message: 'Sesión cerrada exitosamente.' });
+    // Eliminamos todas las cookies de autenticación
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      expires: new Date(0)
+    };
+
+    res.cookie('accessToken', '', cookieOptions);
+    res.cookie('sessionToken', '', cookieOptions);
+    res.clearCookie('connect.sid');
+    
+    // Destruimos la sesión si existe
+    if (req.session) {
+      req.session.destroy((err) => {
+        if (err) {
+          console.error('Error al destruir la sesión:', err);
+        }
+      });
+    }
+
+    res.status(200).json({ 
+      message: 'Sesión cerrada exitosamente.',
+      isAuthenticated: false 
     });
   } catch (error) {
-    return res.status(500).json({ message: 'Error al cerrar sesión.' });
+     res.status(500).json({ message: 'Error inesperado durante el logout.', error: error.message });
   }
 };
 
+// Verificar autenticación (funciona tanto para JWT como para sesión)
+exports.verifyAuth = async (req, res) => {
+  try {
+    // Primero verificar si hay una sesión activa
+    if (req.session && req.session.user) {
+      const user = await User.findById(req.session.user.id);
+      if (user) {
+        return res.status(200).json({ 
+          user: {
+            id: user.id,
+            email: user.email,
+            role: user.role
+          },
+          isAuthenticated: true,
+          authType: 'session'
+        });
+      }
+    }
 
+    // Si no hay sesión, verificar el token JWT
+    const token = req.cookies.sessionToken || req.cookies.accessToken;
+    if (!token) {
+      return res.status(401).json({ 
+        message: 'No autenticado',
+        isAuthenticated: false 
+      });
+    }
+
+    // Verificar si el token está en la blacklist
+    const isBlacklisted = await TokenBlacklist.isBlacklisted(token);
+    if (isBlacklisted) {
+      return res.status(401).json({ 
+        message: 'Token invalidado',
+        isAuthenticated: false 
+      });
+    }
+
+    // Verificar la firma del token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Verificar que el usuario sigue existiendo en la BD
+    const user = await User.findById(decoded.user.id);
+    if (!user) {
+      return res.status(401).json({ 
+        message: 'Usuario no encontrado',
+        isAuthenticated: false 
+      });
+    }
+
+    // Devolver datos seguros del usuario
+    res.status(200).json({ 
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role
+      },
+      isAuthenticated: true,
+      authType: 'token'
+    });
+  } catch (error) {
+    // Si el token es inválido o expiró
+    res.status(401).json({ 
+      message: error.message || 'Token inválido',
+      isAuthenticated: false 
+    });
+    res.status(401).json({ message: 'Token inválido o expirado' });
+  }
+};
